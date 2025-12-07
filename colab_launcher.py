@@ -75,7 +75,7 @@ def install_cloudflared():
         return False
 
 
-def start_cloudflare_tunnel(port):
+def start_cloudflare_tunnel(port, debug=False):
     """Cloudflare Tunnel başlat ve public URL al"""
     print(f"🌐 Cloudflare Tunnel başlatılıyor (port {port})...")
 
@@ -84,45 +84,93 @@ def start_cloudflare_tunnel(port):
         process = subprocess.Popen(
             ["cloudflared", "tunnel", "--url", f"http://localhost:{port}"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             universal_newlines=True,
             bufsize=1
         )
 
         # URL'yi yakala
+        import re
+        import threading
+
         public_url = None
-        for line in process.stdout:
-            if "trycloudflare.com" in line:
-                # URL'yi extract et
-                parts = line.split()
-                for part in parts:
-                    if "trycloudflare.com" in part:
-                        public_url = part.strip()
+        url_found = threading.Event()
+
+        def read_output(stream, stream_name):
+            """stdout ve stderr'ı ayrı thread'lerde oku"""
+            nonlocal public_url
+
+            for line in stream:
+                line = line.strip()
+
+                # Debug modu
+                if debug and line:
+                    print(f"[{stream_name}] {line}")
+
+                # URL'yi ara
+                if "trycloudflare.com" in line and not public_url:
+                    # Regex ile URL'yi yakala
+                    url_match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
+
+                    if url_match:
+                        public_url = url_match.group(0)
+                        url_found.set()
                         break
+                    else:
+                        # Fallback parsing
+                        parts = line.split()
+                        for part in parts:
+                            if "trycloudflare.com" in part:
+                                # Temizle (pipe, quotes, noktalama vb.)
+                                cleaned = re.sub(r'[^\w\-\.:/]', '', part)
+                                if cleaned.startswith("http"):
+                                    public_url = cleaned
+                                elif "trycloudflare.com" in cleaned:
+                                    public_url = "https://" + cleaned
 
-                if public_url:
-                    # https:// yoksa ekle
-                    if not public_url.startswith("http"):
-                        public_url = "https://" + public_url
+                                if public_url:
+                                    url_found.set()
+                                    break
+                        if public_url:
+                            break
 
-                    print("\n" + "="*70)
-                    print("✅ UYGULAMANIZ HAZIR!")
-                    print("="*70)
-                    print(f"\n🌐 PUBLIC URL: {public_url}")
-                    print("\n📝 Bu linke tıklayarak uygulamaya erişebilirsiniz!")
-                    print("   (Link kalıcıdır, Colab session açık kaldığı sürece çalışır)")
-                    print("="*70 + "\n")
-                    break
+        # Her iki stream'i ayrı thread'lerde oku
+        stdout_thread = threading.Thread(target=read_output, args=(process.stdout, "STDOUT"))
+        stderr_thread = threading.Thread(target=read_output, args=(process.stderr, "STDERR"))
 
-        if not public_url:
-            print("⚠️  Public URL alınamadı, ancak tunnel çalışıyor olabilir.")
-            print("   Loglarda 'trycloudflare.com' içeren satırı arayın.")
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
+
+        stdout_thread.start()
+        stderr_thread.start()
+
+        # URL'yi bekle (max 30 saniye)
+        print("🔍 Public URL bekleniyor...")
+        url_found.wait(timeout=30)
+
+        if public_url:
+            print("\n" + "="*70)
+            print("✅ UYGULAMANIZ HAZIR!")
+            print("="*70)
+            print(f"\n🌐 PUBLIC URL: {public_url}")
+            print("\n📝 Bu linke tıklayarak uygulamaya erişebilirsiniz!")
+            print("   (Link kalıcıdır, Colab session açık kaldığı sürece çalışır)")
+            print("\n💡 İpucu: URL'yi CTRL+Click ile açabilirsiniz")
+            print("="*70 + "\n")
+        else:
+            print("\n⚠️  Public URL otomatik olarak alınamadı.")
+            print("   Lütfen aşağıdaki komutu çalıştırarak manuel kontrol edin:\n")
+            print("   !ps aux | grep cloudflared")
+            print("   !cloudflared tunnel info\n")
 
         # Process'i çalışır durumda tut
         return process
 
     except Exception as e:
         print(f"❌ Cloudflare Tunnel başlatılamadı: {e}")
+        import traceback
+        if debug:
+            traceback.print_exc()
         return None
 
 
@@ -543,7 +591,23 @@ def start_flask_server(port=5000):
     print("✅ Flask sunucusu çalışıyor!")
 
 
-def main():
+def get_public_url_alternative(port=5000):
+    """
+    Alternatif yöntem: Cloudflare URL'sini manuel göster
+    Eğer otomatik yakalama başarısız olursa kullanıcıya yardımcı ol
+    """
+    print("\n" + "="*70)
+    print("📋 MANUEL URL KONTROLÜ")
+    print("="*70)
+    print("\nEğer yukarıda URL görünmediyse:")
+    print("1. Aşağıdaki komutu çalıştırın:")
+    print("   !curl http://localhost:4040/api/tunnels 2>/dev/null | grep -o 'https://[^\"]*trycloudflare.com'")
+    print("\n2. Veya cloudflared loglarına bakın:")
+    print("   Process loglarında 'trycloudflare.com' arayın")
+    print("="*70 + "\n")
+
+
+def main(debug=False):
     """Ana kurulum fonksiyonu"""
 
     if not is_colab():
@@ -578,6 +642,10 @@ def main():
         print("\n✅ Kurulum tamamlandı!")
         print("   Uygulamanız çalışıyor. Yukarıdaki linke tıklayın.")
         print("   Durdurmak için: Runtime -> Interrupt execution\n")
+
+        # Alternatif URL alma yöntemi göster
+        time.sleep(2)
+        get_public_url_alternative(port)
 
         # Process'i çalışır durumda tut
         try:

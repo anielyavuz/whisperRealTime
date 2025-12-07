@@ -130,18 +130,52 @@ colab_launcher.quick_start_cpu()
 
 ## 🔧 Sorun Giderme
 
-### Public URL Görünmüyor
+### Public URL Görünmüyor veya "..." ile Gösteriliyor
 
-**Sorun:** Cloudflare Tunnel URL'si gösterilmiyor.
+**Sorun:** Cloudflare Tunnel URL'si tam gösterilmiyor veya "https://trycloudflare.com..." şeklinde kesik görünüyor.
 
-**Çözüm:**
-1. Hücreyi tekrar çalıştırın
-2. `Runtime > Restart runtime` yapın
-3. Tüm hücreleri baştan çalıştırın
-4. Manuel olarak logları kontrol edin:
-   ```python
-   !tail -f /tmp/cloudflared.log
-   ```
+**Çözüm 1 - Manuel URL Kontrolü:**
+```python
+# Cloudflared process'ini kontrol et
+!ps aux | grep cloudflared
+
+# Cloudflared loglarını oku
+# URL genellikle ilk 20 satırda görünür
+```
+
+**Çözüm 2 - Debug Modu:**
+```python
+# colab_launcher.py içindeki debug modunu aktif et
+import colab_launcher
+colab_launcher.start_cloudflare_tunnel(5000, debug=True)
+```
+
+**Çözüm 3 - Alternatif Tunnel Başlatma:**
+```python
+# Manuel olarak cloudflared başlat
+import subprocess
+proc = subprocess.Popen(
+    ['cloudflared', 'tunnel', '--url', 'http://localhost:5000'],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    universal_newlines=True
+)
+
+# İlk 30 satırı oku
+for i in range(30):
+    line = proc.stdout.readline()
+    print(line, end='')
+    if 'trycloudflare.com' in line:
+        # URL'yi görünce kopyalayın
+        break
+```
+
+**Çözüm 4 - Runtime Yenileme:**
+1. `Runtime > Restart runtime` yapın
+2. Tüm hücreleri baştan çalıştırın
+3. Cloudflare bazen ilk denemede URL vermeyebilir
+
+**NOT:** Cloudflare Tunnel token gerektirmez! Tamamen ücretsiz ve anonim çalışır.
 
 ### Mikrofon Çalışmıyor
 
