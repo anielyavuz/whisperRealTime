@@ -134,48 +134,51 @@ colab_launcher.quick_start_cpu()
 
 **Sorun:** Cloudflare Tunnel URL'si tam gösterilmiyor veya "https://trycloudflare.com..." şeklinde kesik görünüyor.
 
-**Çözüm 1 - Manuel URL Kontrolü:**
-```python
-# Cloudflared process'ini kontrol et
-!ps aux | grep cloudflared
+**✅ ÇÖZÜLDÜ! Güncel versiyon `pycloudflared` kullanıyor:**
 
-# Cloudflared loglarını oku
-# URL genellikle ilk 20 satırda görünür
-```
+Artık güvenilir bir Python kütüphanesi kullanıyoruz. Güncel kodu çekin:
 
-**Çözüm 2 - Debug Modu:**
 ```python
-# colab_launcher.py içindeki debug modunu aktif et
+!git pull origin main
 import colab_launcher
-colab_launcher.start_cloudflare_tunnel(5000, debug=True)
+colab_launcher.quick_start_gpu()
 ```
 
-**Çözüm 3 - Alternatif Tunnel Başlatma:**
+**Yeni Özellikler:**
+- ✅ **pycloudflared** - Modern, güvenilir URL yakalama
+- ✅ **Otomatik fallback** - Başarısız olursa raw subprocess
+- ✅ **stderr parsing** - Cloudflared'in gerçek çıktı kanalı
+- ✅ **Üç katmanlı parse** - Regex, pipe split, kelime bazlı
+
+**Hala Sorun Varsa:**
+
+**Çözüm 1 - Debug Modu:**
 ```python
-# Manuel olarak cloudflared başlat
-import subprocess
-proc = subprocess.Popen(
-    ['cloudflared', 'tunnel', '--url', 'http://localhost:5000'],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.STDOUT,
-    universal_newlines=True
-)
-
-# İlk 30 satırı oku
-for i in range(30):
-    line = proc.stdout.readline()
-    print(line, end='')
-    if 'trycloudflare.com' in line:
-        # URL'yi görünce kopyalayın
-        break
+# Raw subprocess ile debug modu
+from colab_launcher import start_cloudflare_tunnel_raw
+start_cloudflare_tunnel_raw(5000, debug=True)
+# stderr çıktısını gösterir
 ```
 
-**Çözüm 4 - Runtime Yenileme:**
-1. `Runtime > Restart runtime` yapın
-2. Tüm hücreleri baştan çalıştırın
-3. Cloudflare bazen ilk denemede URL vermeyebilir
+**Çözüm 2 - Manuel pycloudflared:**
+```python
+# Direkt pycloudflared kullan
+!pip install pycloudflared -q
+from pycloudflared import try_cloudflare
 
-**NOT:** Cloudflare Tunnel token gerektirmez! Tamamen ücretsiz ve anonim çalışır.
+tunnel = try_cloudflare(port=5000)
+print(f"🌐 URL: {tunnel.tunnel}")
+```
+
+**Çözüm 3 - Notebook'taki Troubleshooting Hücresi:**
+- Notebook'ta "🔍 URL Göremiyorsanız" başlıklı hücreyi çalıştırın
+- Otomatik olarak URL'yi bulur ve gösterir
+
+**NOT:**
+- ✅ Token/auth gerektirmez
+- ✅ %100 ücretsiz
+- ✅ HTTPS otomatik
+- ✅ Her session yeni URL (normal)
 
 ### Mikrofon Çalışmıyor
 

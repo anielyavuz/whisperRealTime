@@ -75,12 +75,60 @@ def install_cloudflared():
         return False
 
 
-def start_cloudflare_tunnel(port, debug=False):
-    """Cloudflare Tunnel başlat ve public URL al"""
-    print(f"🌐 Cloudflare Tunnel başlatılıyor (port {port})...")
+def start_cloudflare_tunnel_pycloudflared(port):
+    """
+    Cloudflare Tunnel başlat - pycloudflared kullanarak (Önerilen)
+    Modern ve güvenilir yöntem
+    """
+    print(f"🌐 Cloudflare Tunnel başlatılıyor (pycloudflared ile, port {port})...")
 
     try:
-        # Tunnel'ı başlat
+        # pycloudflared'i import et
+        try:
+            from pycloudflared import try_cloudflare
+        except ImportError:
+            print("📦 pycloudflared kuruluyor...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "pycloudflared", "-q"])
+            from pycloudflared import try_cloudflare
+
+        # Tunnel'ı başlat ve URL'yi al
+        print("🔍 Public URL oluşturuluyor...")
+        tunnel = try_cloudflare(port=port)
+        public_url = tunnel.tunnel
+
+        if public_url:
+            print("\n" + "="*70)
+            print("✅ UYGULAMANIZ HAZIR!")
+            print("="*70)
+            print(f"\n🌐 PUBLIC URL: {public_url}")
+            print("\n📝 Bu linke tıklayarak uygulamaya erişebilirsiniz!")
+            print("   (Link kalıcıdır, Colab session açık kaldığı sürece çalışır)")
+            print("\n💡 İpucu: URL'yi CTRL+Click ile açabilirsiniz")
+            print("="*70 + "\n")
+
+            return tunnel
+        else:
+            print("❌ URL alınamadı")
+            return None
+
+    except Exception as e:
+        print(f"⚠️  pycloudflared başarısız: {e}")
+        print("   Fallback yöntemine geçiliyor...\n")
+        return None
+
+
+def start_cloudflare_tunnel_raw(port, debug=False):
+    """
+    Cloudflare Tunnel başlat - Raw subprocess (Fallback)
+    Geliştirilmiş stderr parsing
+    """
+    print(f"🌐 Cloudflare Tunnel başlatılıyor (raw subprocess, port {port})...")
+
+    try:
+        import re
+        import select
+
+        # Tunnel'ı başlat - stderr'ı yakalamak çok önemli!
         process = subprocess.Popen(
             ["cloudflared", "tunnel", "--url", f"http://localhost:{port}"],
             stdout=subprocess.PIPE,
@@ -89,64 +137,55 @@ def start_cloudflare_tunnel(port, debug=False):
             bufsize=1
         )
 
-        # URL'yi yakala
-        import re
-        import threading
+        print("🔍 Public URL bekleniyor (stderr'dan okuma)...")
 
         public_url = None
-        url_found = threading.Event()
+        attempts = 0
+        max_attempts = 50  # Daha fazla deneme
 
-        def read_output(stream, stream_name):
-            """stdout ve stderr'ı ayrı thread'lerde oku"""
-            nonlocal public_url
+        # stderr'dan oku (cloudflared URL'yi stderr'a yazar!)
+        while attempts < max_attempts and not public_url:
+            # stderr'dan satır oku
+            line = process.stderr.readline()
 
-            for line in stream:
+            if line:
                 line = line.strip()
 
                 # Debug modu
-                if debug and line:
-                    print(f"[{stream_name}] {line}")
+                if debug:
+                    print(f"[STDERR] {line}")
 
-                # URL'yi ara
-                if "trycloudflare.com" in line and not public_url:
-                    # Regex ile URL'yi yakala
+                # URL'yi ara - cloudflared formatı: "| https://xxx.trycloudflare.com |"
+                if "trycloudflare.com" in line:
+                    # Method 1: Regex ile URL yakala
                     url_match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
 
                     if url_match:
                         public_url = url_match.group(0)
-                        url_found.set()
                         break
-                    else:
-                        # Fallback parsing
-                        parts = line.split()
+
+                    # Method 2: Pipe karakterleri arası parse
+                    if '|' in line:
+                        parts = line.split('|')
                         for part in parts:
-                            if "trycloudflare.com" in part:
-                                # Temizle (pipe, quotes, noktalama vb.)
-                                cleaned = re.sub(r'[^\w\-\.:/]', '', part)
-                                if cleaned.startswith("http"):
+                            part = part.strip()
+                            if part.startswith('https://') and 'trycloudflare.com' in part:
+                                public_url = part
+                                break
+
+                    # Method 3: Kelime bazlı parse
+                    if not public_url:
+                        words = line.split()
+                        for word in words:
+                            if 'trycloudflare.com' in word:
+                                # Temizle
+                                cleaned = re.sub(r'[^a-zA-Z0-9\-\.:/]', '', word)
+                                if 'https://' in cleaned:
                                     public_url = cleaned
-                                elif "trycloudflare.com" in cleaned:
-                                    public_url = "https://" + cleaned
-
-                                if public_url:
-                                    url_found.set()
                                     break
-                        if public_url:
-                            break
 
-        # Her iki stream'i ayrı thread'lerde oku
-        stdout_thread = threading.Thread(target=read_output, args=(process.stdout, "STDOUT"))
-        stderr_thread = threading.Thread(target=read_output, args=(process.stderr, "STDERR"))
-
-        stdout_thread.daemon = True
-        stderr_thread.daemon = True
-
-        stdout_thread.start()
-        stderr_thread.start()
-
-        # URL'yi bekle (max 30 saniye)
-        print("🔍 Public URL bekleniyor...")
-        url_found.wait(timeout=30)
+            attempts += 1
+            time.sleep(0.1)
 
         if public_url:
             print("\n" + "="*70)
@@ -159,11 +198,11 @@ def start_cloudflare_tunnel(port, debug=False):
             print("="*70 + "\n")
         else:
             print("\n⚠️  Public URL otomatik olarak alınamadı.")
-            print("   Lütfen aşağıdaki komutu çalıştırarak manuel kontrol edin:\n")
-            print("   !ps aux | grep cloudflared")
-            print("   !cloudflared tunnel info\n")
+            print("   stderr'dan okuma başarısız oldu.")
+            print("   Manuel kontrol için:")
+            print("   1. Yeni bir hücrede: !ps aux | grep cloudflared")
+            print("   2. Tunnel çalışıyorsa logları kontrol edin\n")
 
-        # Process'i çalışır durumda tut
         return process
 
     except Exception as e:
@@ -172,6 +211,22 @@ def start_cloudflare_tunnel(port, debug=False):
         if debug:
             traceback.print_exc()
         return None
+
+
+def start_cloudflare_tunnel(port, debug=False):
+    """
+    Cloudflare Tunnel başlat - Akıllı yöntem seçimi
+    Önce pycloudflared, başarısız olursa raw subprocess
+    """
+    # Önce modern kütüphane ile dene
+    result = start_cloudflare_tunnel_pycloudflared(port)
+
+    if result:
+        return result
+
+    # Başarısız olursa raw subprocess
+    print("🔄 Alternatif yöntem deneniyor...\n")
+    return start_cloudflare_tunnel_raw(port, debug=debug)
 
 
 def create_app_file():
