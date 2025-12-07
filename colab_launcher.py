@@ -91,6 +91,17 @@ def start_cloudflare_tunnel_pycloudflared(port):
             subprocess.check_call([sys.executable, "-m", "pip", "install", "pycloudflared", "-q"])
             from pycloudflared import try_cloudflare
 
+        # Flask'ın hazır olduğunu doğrula
+        print("🔍 Flask sunucusu kontrol ediliyor...")
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('localhost', port))
+        sock.close()
+
+        if result != 0:
+            print(f"⚠️  Flask port {port}'da hazır değil, 5 saniye bekleniyor...")
+            time.sleep(5)
+
         # Tunnel'ı başlat ve URL'yi al
         print("🔍 Public URL oluşturuluyor...")
         tunnel = try_cloudflare(port=port)
@@ -104,6 +115,8 @@ def start_cloudflare_tunnel_pycloudflared(port):
             print("\n📝 Bu linke tıklayarak uygulamaya erişebilirsiniz!")
             print("   (Link kalıcıdır, Colab session açık kaldığı sürece çalışır)")
             print("\n💡 İpucu: URL'yi CTRL+Click ile açabilirsiniz")
+            print("\n⏱️  İlk açılış 10-15 saniye sürebilir (model yükleme)")
+            print("   Eğer 502 hatası alırsanız, 10 saniye bekleyip yenileyin")
             print("="*70 + "\n")
 
             return tunnel
@@ -627,7 +640,7 @@ def create_templates():
 
 
 def start_flask_server(port=5000):
-    """Flask sunucusunu başlat"""
+    """Flask sunucusunu başlat ve hazır olana kadar bekle"""
     print(f"🚀 Flask sunucusu başlatılıyor (port {port})...")
 
     # Ortam değişkenlerini ayarla
@@ -635,15 +648,33 @@ def start_flask_server(port=5000):
     os.environ['WHISPER_MODEL'] = 'small'
 
     # Flask'ı başlat
-    subprocess.Popen(
+    flask_process = subprocess.Popen(
         [sys.executable, "app.py"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
 
-    # Sunucunun başlaması için bekle
-    time.sleep(5)
-    print("✅ Flask sunucusu çalışıyor!")
+    # Sunucunun gerçekten hazır olmasını bekle
+    import socket
+    max_attempts = 30
+    for attempt in range(max_attempts):
+        try:
+            # Port'un açık olup olmadığını kontrol et
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            result = sock.connect_ex(('localhost', port))
+            sock.close()
+
+            if result == 0:
+                # Port açık, Flask hazır
+                print("✅ Flask sunucusu çalışıyor!")
+                return flask_process
+
+            time.sleep(1)
+        except:
+            time.sleep(1)
+
+    print("⚠️  Flask başladı ama health check başarısız (timeout)")
+    return flask_process
 
 
 def get_public_url_alternative(port=5000):
@@ -691,9 +722,9 @@ def main(debug=False):
     start_flask_server(port)
 
     # 5. Cloudflare Tunnel başlat
-    tunnel_process = start_cloudflare_tunnel(port)
+    tunnel_result = start_cloudflare_tunnel(port)
 
-    if tunnel_process:
+    if tunnel_result:
         print("\n✅ Kurulum tamamlandı!")
         print("   Uygulamanız çalışıyor. Yukarıdaki linke tıklayın.")
         print("   Durdurmak için: Runtime -> Interrupt execution\n")
@@ -702,9 +733,17 @@ def main(debug=False):
         time.sleep(2)
         get_public_url_alternative(port)
 
-        # Process'i çalışır durumda tut
+        # Tunnel'ı çalışır durumda tut
         try:
-            tunnel_process.wait()
+            # pycloudflared objesi mi yoksa subprocess mi kontrol et
+            if hasattr(tunnel_result, 'wait'):
+                # subprocess.Popen objesi
+                tunnel_result.wait()
+            else:
+                # pycloudflared Urls objesi - sonsuz bekle
+                print("🔄 Tunnel aktif, session açık tutmak için bekliyor...")
+                while True:
+                    time.sleep(60)
         except KeyboardInterrupt:
             print("\n🛑 Uygulama durduruldu.")
     else:
