@@ -246,16 +246,24 @@ def start_ngrok_tunnel(port):
         ngrok.set_auth_token(NGROK_AUTH_TOKEN)
         print("✅ Ngrok auth token ayarlandı")
 
-        # Flask'ın hazır olduğunu doğrula
+        # Flask'ın hazır olduğunu HTTP ile doğrula
         print("🔍 Flask sunucusu kontrol ediliyor...")
-        import socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex(('localhost', port))
-        sock.close()
+        flask_ready = False
 
-        if result != 0:
-            print(f"⚠️  Flask port {port}'da hazır değil, 5 saniye bekleniyor...")
-            time.sleep(5)
+        for i in range(10):
+            try:
+                import urllib.request
+                response = urllib.request.urlopen(f'http://localhost:{port}/health', timeout=2)
+                if response.status == 200:
+                    flask_ready = True
+                    print("✅ Flask hazır!")
+                    break
+            except:
+                time.sleep(1)
+
+        if not flask_ready:
+            print(f"⚠️  Flask port {port}'da henüz hazır değil, devam ediliyor...")
+            print("   İlk açılışta model yüklenirken biraz daha sürebilir")
 
         # Tunnel'ı başlat
         print("🔍 Public URL oluşturuluyor...")
@@ -716,26 +724,30 @@ def start_flask_server(port=5000):
         stderr=subprocess.DEVNULL
     )
 
-    # Sunucunun gerçekten hazır olmasını bekle
-    import socket
-    max_attempts = 30
+    # Sunucunun gerçekten hazır olmasını bekle - HTTP request ile
+    print("🔍 Flask hazır olması bekleniyor...")
+    max_attempts = 60  # 60 saniye = yeterli süre
+
     for attempt in range(max_attempts):
         try:
-            # Port'un açık olup olmadığını kontrol et
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            result = sock.connect_ex(('localhost', port))
-            sock.close()
+            import urllib.request
+            # HTTP GET request gönder
+            response = urllib.request.urlopen(f'http://localhost:{port}/health', timeout=2)
 
-            if result == 0:
-                # Port açık, Flask hazır
-                print("✅ Flask sunucusu çalışıyor!")
+            if response.status == 200:
+                print(f"✅ Flask sunucusu hazır! (attempt {attempt + 1})")
+                # Ekstra güvenlik için 2 saniye daha bekle
+                time.sleep(2)
                 return flask_process
 
-            time.sleep(1)
-        except:
+        except Exception as e:
+            # Henüz hazır değil, bekle
+            if attempt % 10 == 0 and attempt > 0:
+                print(f"   Bekleniyor... ({attempt}/{max_attempts})")
             time.sleep(1)
 
     print("⚠️  Flask başladı ama health check başarısız (timeout)")
+    print("   Flask process devam ediyor, tunnel başlatılacak ama 502 hatası alabilirsiniz.")
     return flask_process
 
 
