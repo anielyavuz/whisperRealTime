@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faster-Whisper Realtime STT - Ücretsiz Alternatif</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 8px;
+            margin-right: 8px;
+        }
+
+        .badge.free {
+            background: #28a745;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 0;
+            min-height: 600px;
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            border-right: 1px solid #e0e0e0;
+            padding: 25px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 6px;
+        }
+
+        select, input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+            transition: border-color 0.2s;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #11998e;
+        }
+
+        .button-group {
+            display: grid;
+            gap: 10px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-start:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(17, 153, 142, 0.4);
+        }
+
+        .btn-stop {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            background: #c82333;
+        }
+
+        .btn-clear {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-clear:hover:not(:disabled) {
+            background: #5a6268;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 20px;
+            padding: 15px 25px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 13px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #dc3545;
+            transition: background 0.3s;
+        }
+
+        .status-dot.connected {
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.recording {
+            background: #dc3545;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .transcripts-container {
+            padding: 25px;
+            height: calc(600px - 60px);
+            overflow-y: auto;
+        }
+
+        .transcript-section {
+            margin-bottom: 25px;
+        }
+
+        .transcript-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .partial-transcript {
+            padding: 20px;
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            border-radius: 8px;
+            min-height: 80px;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #0c5460;
+        }
+
+        .partial-transcript.active {
+            animation: highlight 0.3s;
+        }
+
+        @keyframes highlight {
+            0%, 100% { background: #d1ecf1; }
+            50% { background: #bee5eb; }
+        }
+
+        .partial-transcript em {
+            opacity: 0.6;
+            font-style: italic;
+        }
+
+        .committed-transcripts {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .transcript-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-left: 4px solid #11998e;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .transcript-item .time {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .transcript-item .lang {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #11998e;
+            color: white;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .transcript-item .latency {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #28a745;
+            color: white;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .transcript-item .text {
+            font-size: 15px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .error-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #dc3545;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            display: none;
+            animation: slideInRight 0.3s;
+            z-index: 1000;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .info-box {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        @media (max-width: 900px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Faster-Whisper Realtime STT</h1>
+            <p>Ücretsiz, GPU Destekli Speech-to-Text (~1-2s latency)</p>
+            <div>
+                <span class="badge free">100% ÜCRETSİZ</span>
+                <span class="badge">GPU Destekli</span>
+                <span class="badge">Türkçe Mükemmel</span>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div id="connectionDot" class="status-dot"></div>
+                <span id="connectionStatus">Bağlantı Yok</span>
+            </div>
+            <div class="status-item">
+                <div id="recordingDot" class="status-dot"></div>
+                <span id="recordingStatus">Kayıt Yok</span>
+            </div>
+            <div class="status-item">
+                <span id="latencyDisplay">Latency: -</span>
+            </div>
+            <div class="status-item">
+                <span id="modelInfo">Model: -</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="info-box">
+                    <strong>🎙️ Yeni Özellik - Akıllı VAD:</strong>
+                    Sessizlik algılandığında otomatik olarak işleme gönderir. Sabit zaman aralığı yok, doğal konuşma akışıyla çalışır!
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Model Ayarları</div>
+                    <div class="control-group">
+                        <label for="modelSelect">Whisper Model</label>
+                        <select id="modelSelect">
+                            <option value="tiny">Tiny (En Hızlı)</option>
+                            <option value="base">Base (Hızlı)</option>
+                            <option value="small" selected>Small (Dengeli)</option>
+                            <option value="medium">Medium (Kaliteli)</option>
+                            <option value="large-v3">Large-v3 (En İyi)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Dil Seçimi</div>
+                    <div class="control-group">
+                        <label for="languageSelect">Language</label>
+                        <select id="languageSelect">
+                            <option value="auto">Auto-detect</option>
+                            <option value="tr" selected>Türkçe</option>
+                            <option value="en">English</option>
+                            <option value="de">Deutsch</option>
+                            <option value="fr">Français</option>
+                            <option value="es">Español</option>
+                            <option value="pt">Português</option>
+                            <option value="it">Italiano</option>
+                            <option value="ar">العربية</option>
+                            <option value="zh">中文</option>
+                            <option value="ja">日本語</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Audio Ayarları</div>
+                    <div class="control-group">
+                        <label for="audioFormat">Sample Rate</label>
+                        <select id="audioFormat">
+                            <option value="pcm_16000" selected>16 kHz (Önerilen)</option>
+                            <option value="pcm_8000">8 kHz</option>
+                            <option value="pcm_22050">22.05 kHz</option>
+                            <option value="pcm_44100">44.1 kHz</option>
+                            <option value="pcm_48000">48 kHz</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="chunkLength">Chunk Length (seconds)</label>
+                        <input type="number" id="chunkLength" value="3" min="1" max="10" step="1">
+                        <small style="color: #666; font-size: 11px;">Her kaç saniyede bir işlensin</small>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">VAD Ayarları</div>
+                    <div class="control-group">
+                        <label>
+                            <input type="checkbox" id="vadFilter" checked>
+                            VAD Filter (Sessizlik Filtreleme)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Kontroller</div>
+                    <div class="button-group">
+                        <button id="startBtn" class="btn-start">Başlat</button>
+                        <button id="stopBtn" class="btn-stop" disabled>Durdur</button>
+                        <button id="clearBtn" class="btn-clear">Temizle</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="transcripts-container">
+                <div class="transcript-section">
+                    <div class="transcript-label">Buffer Status (Anlık)</div>
+                    <div id="partialTranscript" class="partial-transcript">
+                        <em>Konuşmaya başlayın...</em>
+                    </div>
+                </div>
+
+                <div class="transcript-section">
+                    <div class="transcript-label">Transkriptler (İşlenmiş)</div>
+                    <div id="committedTranscripts" class="committed-transcripts">
+                        <!-- Transcript items will be added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="errorMessage" class="error-message"></div>
+
+    <script>
+        class WhisperRealtimeClient {
+            constructor() {
+                this.ws = null;
+                this.audioContext = null;
+                this.mediaStream = null;
+                this.scriptProcessor = null;
+                this.isRecording = false;
+
+                this.config = {
+                    language: 'tr',
+                    modelSize: 'small',
+                    sampleRate: 16000,
+                    chunkLength: 3,
+                    vadFilter: true
+                };
+
+                this.initUI();
+            }
+
+            initUI() {
+                this.elements = {
+                    startBtn: document.getElementById('startBtn'),
+                    stopBtn: document.getElementById('stopBtn'),
+                    clearBtn: document.getElementById('clearBtn'),
+                    languageSelect: document.getElementById('languageSelect'),
+                    modelSelect: document.getElementById('modelSelect'),
+                    audioFormat: document.getElementById('audioFormat'),
+                    chunkLength: document.getElementById('chunkLength'),
+                    vadFilter: document.getElementById('vadFilter'),
+                    partialTranscript: document.getElementById('partialTranscript'),
+                    committedTranscripts: document.getElementById('committedTranscripts'),
+                    connectionDot: document.getElementById('connectionDot'),
+                    connectionStatus: document.getElementById('connectionStatus'),
+                    recordingDot: document.getElementById('recordingDot'),
+                    recordingStatus: document.getElementById('recordingStatus'),
+                    latencyDisplay: document.getElementById('latencyDisplay'),
+                    modelInfo: document.getElementById('modelInfo'),
+                    errorMessage: document.getElementById('errorMessage')
+                };
+
+                this.elements.startBtn.addEventListener('click', () => this.start());
+                this.elements.stopBtn.addEventListener('click', () => this.stop());
+                this.elements.clearBtn.addEventListener('click', () => this.clearTranscripts());
+
+                this.elements.languageSelect.addEventListener('change', (e) => {
+                    this.config.language = e.target.value;
+                    this.sendConfig();
+                });
+
+                this.elements.chunkLength.addEventListener('change', (e) => {
+                    this.config.chunkLength = parseFloat(e.target.value);
+                    this.sendConfig();
+                });
+
+                this.elements.vadFilter.addEventListener('change', (e) => {
+                    this.config.vadFilter = e.target.checked;
+                    this.sendConfig();
+                });
+
+                this.loadModelInfo();
+            }
+
+            async loadModelInfo() {
+                try {
+                    const response = await fetch('/health');
+                    const data = await response.json();
+                    this.elements.modelInfo.textContent = `Model: ${data.model} (${data.gpu ? 'GPU' : 'CPU'})`;
+                    this.elements.modelSelect.value = data.model;
+                } catch (error) {
+                    console.error('Model info error:', error);
+                }
+            }
+
+            updateStatus(type, connected) {
+                if (type === 'connection') {
+                    this.elements.connectionDot.classList.toggle('connected', connected);
+                    this.elements.connectionStatus.textContent = connected ? 'Bağlı' : 'Bağlantı Yok';
+                } else if (type === 'recording') {
+                    this.elements.recordingDot.classList.toggle('recording', connected);
+                    this.elements.recordingStatus.textContent = connected ? 'Kayıt Yapılıyor' : 'Kayıt Yok';
+                }
+            }
+
+            showError(message) {
+                this.elements.errorMessage.textContent = message;
+                this.elements.errorMessage.classList.add('show');
+                setTimeout(() => {
+                    this.elements.errorMessage.classList.remove('show');
+                }, 5000);
+            }
+
+            async start() {
+                try {
+                    this.elements.startBtn.disabled = true;
+
+                    this.config.language = this.elements.languageSelect.value;
+                    this.config.modelSize = this.elements.modelSelect.value;
+                    this.config.sampleRate = parseInt(this.elements.audioFormat.value.split('_')[1]);
+                    this.config.chunkLength = parseFloat(this.elements.chunkLength.value);
+                    this.config.vadFilter = this.elements.vadFilter.checked;
+
+                    await this.connectWebSocket();
+                    await this.startAudioCapture();
+
+                    this.isRecording = true;
+                    this.elements.stopBtn.disabled = false;
+                    this.updateStatus('recording', true);
+
+                } catch (error) {
+                    console.error('Start error:', error);
+                    this.elements.startBtn.disabled = false;
+                    this.showError('Başlatma hatası: ' + error.message);
+                }
+            }
+
+            connectWebSocket() {
+                return new Promise((resolve, reject) => {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+                    console.log('Connecting to:', wsUrl);
+                    this.ws = new WebSocket(wsUrl);
+
+                    this.ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        this.updateStatus('connection', true);
+                        this.sendConfig();
+                        resolve();
+                    };
+
+                    this.ws.onclose = () => {
+                        console.log('WebSocket closed');
+                        this.updateStatus('connection', false);
+                        if (this.isRecording) {
+                            this.stop();
+                        }
+                    };
+
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.showError('WebSocket bağlantı hatası');
+                        reject(error);
+                    };
+
+                    this.ws.onmessage = (event) => {
+                        this.handleMessage(JSON.parse(event.data));
+                    };
+
+                    setTimeout(() => {
+                        if (this.ws.readyState !== WebSocket.OPEN) {
+                            reject(new Error('Connection timeout'));
+                        }
+                    }, 5000);
+                });
+            }
+
+            sendConfig() {
+                if (this.ws?.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify({
+                        type: 'config',
+                        config: {
+                            language: this.config.language,
+                            silence_threshold: 0.5,  // 0.5 saniye sessizlik
+                            min_speech_duration: 0.5,  // En az 0.5 saniye konuşma
+                            vad_threshold: 0.5  // VAD eşik değeri
+                        }
+                    }));
+                }
+            }
+
+            handleMessage(message) {
+                const msgType = message.type || message.message_type;
+                console.log('Received:', msgType, message);
+
+                switch (msgType) {
+                    case 'session_started':
+                        console.log('Session started', message.vad_enabled ? '(VAD Enabled)' : '(VAD Disabled)');
+                        break;
+
+                    case 'vad_status':
+                        // VAD durumunu göster
+                        if (message.is_speaking) {
+                            this.updatePartialTranscript(`🎤 Konuşma algılandı... (${message.buffer_duration}s)`);
+                        } else if (message.buffer_duration > 0.3) {
+                            this.updatePartialTranscript(`⏸️ Buffer: ${message.buffer_duration}s`);
+                        }
+                        break;
+
+                    case 'speech_started':
+                        this.updatePartialTranscript('🎤 Konuşma başladı...');
+                        break;
+
+                    case 'speech_ended':
+                        this.updatePartialTranscript('⏳ İşleniyor...');
+                        break;
+
+                    case 'partial_transcript':
+                        this.updatePartialTranscript(message.text);
+                        break;
+
+                    case 'committed_transcript':
+                        this.addCommittedTranscript(
+                            message.text,
+                            message.language_code,
+                            message.latency_ms
+                        );
+                        break;
+
+                    case 'error':
+                        this.showError(`Hata: ${message.error}`);
+                        break;
+                }
+            }
+
+            updatePartialTranscript(text) {
+                if (text) {
+                    this.elements.partialTranscript.innerHTML = text;
+                    this.elements.partialTranscript.classList.add('active');
+                } else {
+                    this.elements.partialTranscript.innerHTML = '<em>Konuşmaya başlayın...</em>';
+                    this.elements.partialTranscript.classList.remove('active');
+                }
+            }
+
+            addCommittedTranscript(text, langCode = null, latencyMs = null) {
+                if (!text || text.trim() === '') return;
+
+                this.updatePartialTranscript('');
+
+                const item = document.createElement('div');
+                item.className = 'transcript-item';
+
+                const time = new Date().toLocaleTimeString('tr-TR');
+                const langBadge = langCode ? `<span class="lang">${langCode.toUpperCase()}</span>` : '';
+                const latencyBadge = latencyMs ? `<span class="latency">${latencyMs}ms</span>` : '';
+
+                item.innerHTML = `
+                    <div class="time">${time} ${langBadge} ${latencyBadge}</div>
+                    <div class="text">${text}</div>
+                `;
+
+                // En yeni en üstte (prepend yerine append)
+                this.elements.committedTranscripts.insertBefore(item, this.elements.committedTranscripts.firstChild);
+
+                // Scroll'u en üstte tut
+                this.elements.committedTranscripts.scrollTop = 0;
+
+                if (latencyMs) {
+                    this.elements.latencyDisplay.textContent = `Latency: ${latencyMs}ms`;
+                }
+            }
+
+            async startAudioCapture() {
+                try {
+                    this.mediaStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            channelCount: 1,
+                            sampleRate: this.config.sampleRate,
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
+
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                        sampleRate: this.config.sampleRate
+                    });
+
+                    const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+                    const bufferSize = 4096;
+                    this.scriptProcessor = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+
+                    this.scriptProcessor.onaudioprocess = (event) => {
+                        if (!this.isRecording || this.ws?.readyState !== WebSocket.OPEN) return;
+
+                        const inputData = event.inputBuffer.getChannelData(0);
+                        const pcmData = this.float32ToPCM16(inputData);
+                        const base64Data = this.arrayBufferToBase64(pcmData.buffer);
+
+                        this.ws.send(JSON.stringify({
+                            type: 'audio',
+                            audio_base_64: base64Data,
+                            sample_rate: this.config.sampleRate
+                        }));
+                    };
+
+                    source.connect(this.scriptProcessor);
+                    this.scriptProcessor.connect(this.audioContext.destination);
+
+                    console.log('Audio capture started at', this.audioContext.sampleRate, 'Hz');
+
+                } catch (error) {
+                    console.error('Audio capture error:', error);
+                    throw new Error('Mikrofon erişimi sağlanamadı: ' + error.message);
+                }
+            }
+
+            float32ToPCM16(float32Array) {
+                const pcm16 = new Int16Array(float32Array.length);
+                for (let i = 0; i < float32Array.length; i++) {
+                    const s = Math.max(-1, Math.min(1, float32Array[i]));
+                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+                return pcm16;
+            }
+
+            arrayBufferToBase64(buffer) {
+                const bytes = new Uint8Array(buffer);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return btoa(binary);
+            }
+
+            stop() {
+                this.isRecording = false;
+
+                if (this.scriptProcessor) {
+                    this.scriptProcessor.disconnect();
+                    this.scriptProcessor = null;
+                }
+
+                if (this.audioContext) {
+                    this.audioContext.close();
+                    this.audioContext = null;
+                }
+
+                if (this.mediaStream) {
+                    this.mediaStream.getTracks().forEach(track => track.stop());
+                    this.mediaStream = null;
+                }
+
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+
+                this.elements.startBtn.disabled = false;
+                this.elements.stopBtn.disabled = true;
+                this.updateStatus('recording', false);
+                this.updateStatus('connection', false);
+
+                console.log('Stopped');
+            }
+
+            clearTranscripts() {
+                this.elements.committedTranscripts.innerHTML = '';
+                this.updatePartialTranscript('');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            window.whisperClient = new WhisperRealtimeClient();
+        });
+    </script>
+</body>
+</html>

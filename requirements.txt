@@ -1,0 +1,17 @@
+# Flask ve WebSocket
+flask>=2.3.0
+flask-cors>=4.0.0
+flask-sock>=0.6.0
+
+# Whisper Model
+faster-whisper>=0.10.0
+
+# Audio Processing
+numpy>=1.24.0
+
+# GPU Support (Colab için)
+torch>=2.0.0
+ctranslate2>=3.20.0
+
+# Yerel development için (opsiyonel)
+python-dotenv>=1.0.0
