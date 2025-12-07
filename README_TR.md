@@ -130,7 +130,7 @@ config = {'language': 'tr'}  # tr, en, de, fr, es, pt, it, ar, zh, ja...
 - **Backend:** Flask + Flask-Sock (WebSocket)
 - **STT Model:** Faster-Whisper (OpenAI Whisper optimized)
 - **VAD:** Silero VAD (PyTorch)
-- **Public URL:** Cloudflare Tunnel (pycloudflared)
+- **Public URL:** Ngrok (pyngrok) - En güvenilir çözüm
 - **Frontend:** Vanilla JavaScript (Web Audio API)
 
 ---

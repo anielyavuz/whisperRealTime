@@ -226,6 +226,68 @@ def start_cloudflare_tunnel_raw(port, debug=False):
         return None
 
 
+def start_ngrok_tunnel(port):
+    """
+    Ngrok Tunnel başlat - En güvenilir yöntem
+    """
+    print(f"🌐 Ngrok Tunnel başlatılıyor (port {port})...")
+
+    try:
+        # pyngrok'u import et
+        try:
+            from pyngrok import ngrok, conf
+        except ImportError:
+            print("📦 pyngrok kuruluyor...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "pyngrok", "-q"])
+            from pyngrok import ngrok, conf
+
+        # Ngrok auth token ayarla
+        NGROK_AUTH_TOKEN = "36VvZGBmkwJsts4fedxEoTihnkr_7eYk3TAmBRQcchvbdCusL"
+        ngrok.set_auth_token(NGROK_AUTH_TOKEN)
+        print("✅ Ngrok auth token ayarlandı")
+
+        # Flask'ın hazır olduğunu doğrula
+        print("🔍 Flask sunucusu kontrol ediliyor...")
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('localhost', port))
+        sock.close()
+
+        if result != 0:
+            print(f"⚠️  Flask port {port}'da hazır değil, 5 saniye bekleniyor...")
+            time.sleep(5)
+
+        # Tunnel'ı başlat
+        print("🔍 Public URL oluşturuluyor...")
+        public_url = ngrok.connect(port, bind_tls=True)  # HTTPS zorunlu (mikrofon için)
+
+        if public_url:
+            url_str = str(public_url)
+
+            print("\n" + "="*70)
+            print("✅ UYGULAMANIZ HAZIR!")
+            print("="*70)
+            print(f"\n🌐 PUBLIC URL: {url_str}")
+            print("\n📝 Bu linke tıklayarak uygulamaya erişebilirsiniz!")
+            print("   (Link kalıcıdır, Colab session açık kaldığı sürece çalışır)")
+            print("\n💡 İpucu: URL'yi CTRL+Click ile açabilirsiniz")
+            print("\n⏱️  İlk açılış 10-15 saniye sürebilir (model yükleme)")
+            print("   Eğer yüklenmezse, sayfayı yenileyin")
+            print("\n🎯 Ngrok Dashboard: https://dashboard.ngrok.com/observability/http-requests")
+            print("="*70 + "\n")
+
+            return public_url
+        else:
+            print("❌ URL alınamadı")
+            return None
+
+    except Exception as e:
+        print(f"❌ Ngrok başlatılamadı: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 def start_cloudflare_tunnel(port, debug=False):
     """
     Cloudflare Tunnel başlat - Akıllı yöntem seçimi
@@ -712,17 +774,12 @@ def main(debug=False):
     create_app_file()
     create_templates()
 
-    # 3. Cloudflared kur
-    if not install_cloudflared():
-        print("❌ Cloudflare Tunnel kurulamadı, devam edilemiyor.")
-        return
-
-    # 4. Flask sunucusunu başlat
+    # 3. Flask sunucusunu başlat
     port = 5000
     start_flask_server(port)
 
-    # 5. Cloudflare Tunnel başlat
-    tunnel_result = start_cloudflare_tunnel(port)
+    # 4. Ngrok Tunnel başlat
+    tunnel_result = start_ngrok_tunnel(port)
 
     if tunnel_result:
         print("\n✅ Kurulum tamamlandı!")

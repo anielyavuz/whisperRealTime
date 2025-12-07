@@ -13,8 +13,8 @@ numpy>=1.24.0
 torch>=2.0.0
 ctranslate2>=3.20.0
 
-# Cloudflare Tunnel (Colab için)
-pycloudflared>=0.2.0
+# Public URL (Colab için) - Ngrok (en güvenilir)
+pyngrok>=7.0.0
 
 # Yerel development için (opsiyonel)
 python-dotenv>=1.0.0
